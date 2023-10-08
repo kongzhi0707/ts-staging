@@ -229,3 +229,29 @@ module.exports = {
 #### husky@4 和 lint-staged
 
 #### 注意：到现在为止，如果我们的项目还没有执行过 git init，即项目没有被 git 管理，就一定要先执行 git init, 然后在安装 husky。 否则后面还是需要重新安装一遍。
+
+安装命令如下：
+
+```
+npm i husky@4 lint-staged -D
+```
+
+然后我们在 package.json 中添加如下内容
+
+```
+{
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged",
+      "commit-msg": "commitlint -E HUSKY_GIT_PAPAMS"
+    }
+  },
+  "lint-staged": {
+    "*.ts": ["npm run eslint", "npm run prettier"]
+  }
+}
+```
+
+之前我们在 package.json 中的scripts设置的ESLint, Prettier, 以及 commitizen, 到目前为止都只限于开发者手动执行 npm run xxx 才能生效，这样的话一点都不智能，并且玩意开发者忘记了执行命令该咋办呢？
+
+因此这个时候 husky 和 lint-staged 出来了，上面的配置的原理就是监听了 git hook 脚本的执行，在特定的命令执行前(pre-commit) 执行相应的命令 (lint-staged).
