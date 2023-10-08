@@ -243,7 +243,7 @@ npm i husky@4 lint-staged -D
   "husky": {
     "hooks": {
       "pre-commit": "lint-staged",
-      "commit-msg": "commitlint -E HUSKY_GIT_PAPAMS"
+      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
     }
   },
   "lint-staged": {
@@ -255,3 +255,63 @@ npm i husky@4 lint-staged -D
 之前我们在 package.json 中的scripts设置的ESLint, Prettier, 以及 commitizen, 到目前为止都只限于开发者手动执行 npm run xxx 才能生效，这样的话一点都不智能，并且玩意开发者忘记了执行命令该咋办呢？
 
 因此这个时候 husky 和 lint-staged 出来了，上面的配置的原理就是监听了 git hook 脚本的执行，在特定的命令执行前(pre-commit) 执行相应的命令 (lint-staged).
+
+#### husky v5 版本的使用方式
+
+下面的是 husky@5 的使用方式。
+
+#### 安装husky@5
+
+```
+npm i husky -D
+```
+
+使用 git hooks
+
+```
+npx husky install
+```
+
+执行完上面的命令后，会在项目的根目录生成一个 .husky的文件夹。
+
+##### 添加hooks
+
+```
+npx husky add ./husky/pre-commit "npm test"
+```
+
+会在 .husky 目录下生成一个 pre-commit 脚本文件。
+
+现在我们使用 git commit -m 'message' 就会看到hook生效了。
+
+#### 构建
+
+在package.json 中添加如下内容：
+
+```
+{
+  "scripts": {
+    "build:comment": "构建",
+    "build": "npm run eslint && npm run prettier && rm -rf lib && tsc --build"
+  }
+}
+```
+
+我们使用命令 npm run build， 就会在项目的根目录下生成 lib 文件。
+
+#### 封装成脚手架
+
+现在我们将上面整个搭建过程封装成一个脚手架，脚手架的开发就在上面搭建的项目中进行。
+
+#### 准备工作 --- 常用的工具包
+
+开发一个脚手架，一般都需要一些工具包的支持。项目中使用到了以下工具包。
+
+```
+1）commander （完整的node.js命令行解决方案）
+2）chalk (给我们的终端文字添加样式) 3) shelljs (让我们在node.js中使用shell命令)
+4）inquirer (通过交互式命令用户界面，收集用户的选择)
+5）clear-console (清空命令行的当前界面，类似于浏览器控制台的clear(）)
+6）ora (进一步丰富命令行，支持添加一些图标，动效)。
+7）download-git-repo (让我们可以使用node.js从git仓库下载代码)
+```

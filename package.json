@@ -11,7 +11,9 @@
     "prettier:comment": "自动格式化 src 目录下所有的 .ts文件",
     "prettier": "prettier --write \"src/**/*.ts\"",
     "commit:comment": "引导设置规范化的提交信息",
-    "commit": "cz"
+    "commit": "cz",
+    "build:comment": "构建",
+    "build": "npm run eslint && npm run prettier && rm -rf lib && tsc --build"
   },
   "keywords": [],
   "author": "",
@@ -19,7 +21,7 @@
   "husky": {
     "hooks": {
       "pre-commit": "lint-staged",
-      "commit-msg": "commitlint -E HUSKY_GIT_PAPAMS"
+      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
     }
   },
   "lint-staged": {
