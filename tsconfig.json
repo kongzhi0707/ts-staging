@@ -1,0 +1,23 @@
+{
+  "compileOnSave": true, // 设置保存文件的时候自动编译，但需要编译器支持
+  "compilerOptions": {
+    "target": "ES2018", // ECMAScript 目标版本
+    "module": "commonjs", // 指定作用模块 commonjs
+    "moduleResolution": "node", // 选择模块解析策略
+    "experimentalDecorators": true, // 启用装饰器
+    "emitDecoratorMetadata": true, // 为装饰器提供元数据的支持
+    "inlineSourceMap": true, // 生成单个 soucemaps 文件，而不是将 sourcemaps 生成不同的文件
+    "noImplicitThis": true, // 当 this 表达式值为 any 类型的时候，生成一个错误
+    "noUnusedLocals": true, // 有未使用的变量时，抛出错误
+    "stripInternal": true, // 禁用在JSDoc注释中包含' @internal '的声明。
+    "pretty": true,
+    "declaration": true, // 生成相应的 '.d.ts' 文件
+    "outDir": "lib", // 指定输出目录
+    "baseUrl": "./", // 用于解析非相对模块名称的基目录
+    "paths": {
+      // 模块名到基于 baseUrl 的路径映射的列表
+      "*": ["src/*"]
+    }
+  },
+  "exclude": ["lib", "node_modules"] // 设置无需进行编译的文件
+}
