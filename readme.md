@@ -315,3 +315,660 @@ npx husky add ./husky/pre-commit "npm test"
 6）ora (进一步丰富命令行，支持添加一些图标，动效)。
 7）download-git-repo (让我们可以使用node.js从git仓库下载代码)
 ```
+
+安装对应的包如下：
+
+```
+npm i commander chalk shelljs inquirer clear-console -S
+```
+
+#### 本地调试
+
+在项目的根目录下的 package.json 中增加如下内容：
+
+```
+{
+  "bin": {
+    "ts-cli": "./bin/ts-cli.js"
+  }
+}
+```
+
+bin 表示命令 (ts-cli) 的可执行文件的位置，然后我们在项目的根目录下执行 npm link, 就会将 package.json 中的 bin 的值路径添加全局链接，在命令中执行 ts-cli 就会执行 ./bin/ts-cli.js 的文件。
+
+当用户安装带有bin字段的包时，如果是全局安装的话，npm 就会使用符号链接把这些文件链接到 /usr/local/node_modules/.bin/中(全局下)。如果是本地安装的话，会链接到 ./node_modules/.bin/.
+
+现在我们在项目的根目录下新增 bin 目录，然后在 bin 目录下新建 ts-cli.js文件，内容添加如下：
+
+```
+#!/usr/bin/env node
+
+// 将构建目录lib下的 index.js 作为脚手架的入口
+require('../lib/index');
+```
+
+#### 搭建目录结构如下：
+
+下面是源码的目录结构如下：
+
+```
+|--- src
+| |--- order                  # 命令目录，一个文件对应一个命令
+| | |--- create.ts
+| |--- utils                  # 工具方法目录，分为命令专用方法和通用方法
+| | |--- common.ts
+| | |--- create.ts
+| | |--- installFeature.ts
+| |--- index.ts               # 源码入口
+```
+
+当我们运行 ts-staging-cli 命令后，会找到 目录下 /bin/ts.cli.js 文件。
+
+```
+"bin": {
+  "ts-staging-cli": "./bin/ts-cli.js"
+},
+```
+
+./bin/ts.cli.js 入口代码如下：
+
+```
+#!/usr/bin/env node
+
+// 将构建目录(lib)下的 index.js 作为脚手架的入口
+require('../lib/index')
+```
+
+因此会找到 src/index.ts 作为入口文件，因为该文件通过打包构建到 lib/index.js 目录下的。
+
+src/index.ts 代码如下：
+
+```
+import { program } from 'commander';
+import create from './order/create';
+
+// ts-staging-cli -v 或 ts-staging-cli --version
+program
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  .version(`${require('../package.json').version}`, '-v --version')
+  .usage('<command> [options]');
+
+program
+  .command('create <app-name>')
+  .description('Create new project from => ts-cli create yourProjectName')
+  .action(async (name: string) => {
+    // 创建命令具体做的事情都在这里，name 是我们指定的 newPro
+    await create(name);
+  });
+
+program.parse(process.argv);
+```
+
+如上代码，我们可以通过 ts-staging-cli -v 或 ts-staging-cli --version 查看版本号，会读取 package.json 中的版本号。
+
+我们可以命令 创建我们的脚手架，比如 ts-staging-cli create testApp. 就会在我们的对应的目录下 生成 脚手架目录文件。
+会调用 src/order/create.ts 文件。该文件代码如下：
+
+src/order/create.ts 代码：
+
+```
+// create 命令的具体任务
+
+import {
+  changePackageInfo,
+  end,
+  initProjectDir,
+  installDevEnviroment,
+  installFeature,
+  installTSAndInit,
+  installTypesNode,
+  isFileExist,
+  selectFeature,
+} from '../utils/create';
+
+// create 命令
+export default async function create(projectName: string): Promise<void> {
+  // 1）判断文件是否已经存在
+  isFileExist(projectName);
+  // 2）选择需要的功能
+  const feature = await selectFeature();
+  // 3）初始化项目目录
+  initProjectDir(projectName);
+  // 4）改写项目的 package.json 基本信息，比如 name/description
+  changePackageInfo(projectName);
+  // 5) 安装typescript 并初始化
+  installTSAndInit();
+  // 6) 安装 @types/node
+  installTypesNode();
+  // 7) 安装开发环境，支持实时编译
+  installDevEnviroment();
+  // 8) 安装feature
+  installFeature(feature);
+  // 9) 结束
+  end(projectName);
+}
+```
+
+上面代码做了如下事情：
+
+```
+1）判断该项目脚手架名是否存在，如果存在，则退出程序。否则执行第二步。
+2）选择需要的环境功能，包括 ESLint, Prettier, CZ. 我们可以选择所有的功能。
+3) 初始化项目目录，创建 项目名称为 testApp, 然后进入该目录， 使用 shell.exec 执行命令 npm init -y，初始化 package.json文件生成。
+4）改写项目的 package.json 基本信息，比如 name/description。
+5）安装typescript 并初始化，先执行命令：shell.exec('npm i typescript@4.1.2 -D && npx tsc --init'); 安装对应的依赖包，然后把 tsconfig.json 文件的配置项 写入到 项目的根目录的 tsconfig.json 文件内。最后 在项目的根目录下 创建 src/index.ts 目录及文件。
+6）安装 @types/node，执行命令 shell.exec('npm i @types/node@14.14.10 -D');
+7）安装开发环境，支持实时编译，安装依赖包：shell.exec('npm i ts-node-dev@1.0.0 -D'); 在 package.json 的 scripts 中增加打包命令。
+8）安装前面用户选择的功能，比如选择了所有的 ESLint，Prettier, CZ，安装 ESLint，Prettier, CZ，并且配置项写入到 .eslintrc.js, .prettier.js 及 commitlint.config.js 文件中。
+9）整个项目安装结束，给用户提示信息。
+```
+
+src/utils/create.ts 代码如下：
+
+// create 命令需要用到的所有方法
+
+```
+import {
+  getProjectPath, // 获取项目的绝对路径
+  PackageJSON,
+  JSON,
+  printMsg, // 打印信息
+  readJsonFile, // 读取指定路径下json文件
+  writeJsonFile, // 覆写指定路径下的json文件
+  clearConsole, // 清空命令行
+} from './common';
+import { existsSync } from 'fs';
+import { prompt } from 'inquirer';
+import { blue, cyan, gray, red, yellow } from 'chalk';
+import * as shell from 'shelljs';
+import * as installFeatureMethod from './installFeature';
+
+/**
+ * 判断当前目录下是否已经存在指定的文件，如果存在则退出进行
+ * @param filename 文件名
+ */
+export function isFileExist(filename: string): void {
+  // 获取文件的绝对路径
+  const file = getProjectPath(filename);
+  if (existsSync(file)) {
+    printMsg(red(`${file} 已经存在`));
+    process.exit(1);
+  }
+}
+
+/**
+ * 交互式命令，让用户自己选择需要的功能
+ * return ['ESlint', 'Prettier', 'CZ']
+ */
+export async function selectFeature(): Promise<Array<string>> {
+  // 清空命令行
+  clearConsole();
+  // 输出信息
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  printMsg(blue(`TS CLI v${require('../../package.json').version}`));
+  printMsg('Start initializing the project:');
+  printMsg('');
+  const { feature } = await prompt([
+    {
+      name: 'feature',
+      type: 'checkbox',
+      message: 'Check the features needed for your project',
+      choices: [
+        { name: 'ESLint', value: 'ESLint' },
+        { name: 'Prettier', value: 'Prettier' },
+        { name: 'CZ', value: 'CZ' },
+      ],
+    },
+  ]);
+  return feature as Array<string>;
+}
+
+/**
+ * 初始化项目的目录
+ */
+export function initProjectDir(projectName: string): void {
+  shell.exec(`mkdir ${projectName}`);
+  shell.cd(projectName);
+  shell.exec('npm init -y');
+}
+
+/**
+ * 改写项目中 package.json 的 name description
+ */
+export function changePackageInfo(projectName: string): void {
+  const packageJSON: PackageJSON = readJsonFile<PackageJSON>('./package.json');
+  packageJSON.name = packageJSON.description = projectName;
+  writeJsonFile<PackageJSON>('./package.json', packageJSON);
+}
+
+/**
+ * 安装 typescript 并初始化
+ */
+export function installTSAndInit(): void {
+  // 安装 typescript 并 执行命令 tsc --init 生成 tsconfig.json文件
+  shell.exec('npm i typescript@4.1.2 -D && npx tsc --init');
+  // 覆写 tsconfig.json
+  const tsconfigJson: JSON = {
+    compileOnSave: true, // 设置保存文件的时候自动编译，但需要编译器支持
+    compilerOptions: {
+      target: 'ES2018', // ECMAScript 目标版本
+      module: 'commonjs', // 指定作用模块 commonjs
+      moduleResolution: 'node', // 选择模块解析策略
+      experimentalDecorators: true, // 启用装饰器
+      emitDecoratorMetadata: true, // 为装饰器提供元数据的支持
+      inlineSourceMap: true, // 生成单个 soucemaps 文件，而不是将 sourcemaps 生成不同的文件
+      noImplicitThis: true, // 当 this 表达式值为 any 类型的时候，生成一个错误
+      noUnusedLocals: true, // 有未使用的变量时，抛出错误
+      stripInternal: true, // 禁用在JSDoc注释中包含' @internal '的声明。
+      pretty: true,
+      declaration: true, // 生成相应的 '.d.ts' 文件
+      outDir: 'lib', // 指定输出目录
+      baseUrl: './', // 用于解析非相对模块名称的基目录
+      paths: {
+        // 模块名到基于 baseUrl 的路径映射的列表
+        '*': ['src/*'],
+      },
+    },
+    exclude: ['lib', 'node_modules'], // 设置无需进行编译的文件
+  };
+  writeJsonFile<JSON>('./tsconfig.json', tsconfigJson);
+  // 创建 src 目录 和 /src/index.ts
+  shell.exec('mkdir src && touch src/index.ts');
+}
+
+/**
+ * 安装 @types/node
+ * node.js 的类型定义包
+ */
+export function installTypesNode(): void {
+  shell.exec('npm i @types/node@14.14.10 -D');
+}
+
+/**
+ * 安装开发环境，支持实时编译
+ */
+export function installDevEnviroment(): void {
+  shell.exec('npm i ts-node-dev@1.0.0 -D');
+  /**
+   * 在 package.json 的 scripts 中增加如下内容
+   * "dev:comment": "启动开发环境",
+   * "dev": "ts-node-dev --respawn --transpile-only src/index.ts"
+   */
+  const packageJson = readJsonFile<PackageJSON>('./package.json');
+  packageJson.scripts['dev:comment'] = '启动开发环境';
+  packageJson.scripts['dev'] =
+    'ts-node-dev --respawn --transpile-only src/index.ts';
+  writeJsonFile<PackageJSON>('./package.json', packageJson);
+}
+
+/**
+ * 安装用户选择的功能
+ * @param feature 功能列表
+ */
+export function installFeature(feature: Array<string>): void {
+  feature.forEach((item) => {
+    const func = installFeatureMethod[
+      `install${item}`
+    ] as unknown as () => void;
+    func();
+  });
+  // 安装 husky 和 lint-staged
+  installHusky(feature);
+  // 安装构建工具
+  installFeatureMethod.installBuild(feature);
+}
+
+/**
+ * 安装 husky 和 lint-staged, 并根据功能设置相关命令
+ * @param feature 用户选择的功能列表
+ */
+function installHusky(feature: Array<string>): void {
+  // feature 副本
+  const featureBak = JSON.parse(JSON.stringify(feature));
+
+  // 设置 hooks
+  const hooks = {};
+  // 判断用户是否选择了CZ，有则设置 hooks
+  if (featureBak.includes('CZ')) {
+    hooks['commit-msg'] = 'commitlint -E HUSKY_GIT_PARAMS';
+  }
+
+  // 设置 lintstaged
+  const lintStaged: Array<string> = [];
+  if (featureBak.includes('ESLint')) {
+    lintStaged.push('eslint');
+  }
+  if (featureBak.includes('Prettier')) {
+    lintStaged.push('prettier');
+  }
+  installFeatureMethod.installHusky(hooks, lintStaged);
+}
+
+// 整个项目安装结束，给用户提示信息
+export function end(projectName: string): void {
+  printMsg(`Successfully created project ${yellow(projectName)}`);
+  printMsg('Get started with the following commands:');
+  printMsg('');
+  printMsg(`${gray('$')} ${cyan('cd ' + projectName)}`);
+  printMsg(`${gray('$')} ${cyan('npm run dev')}`);
+  printMsg('');
+}
+```
+
+src/utils/common.ts 是放一些通用的工具方法
+代码如下：
+
+```
+// 放一些通用的工具方法
+
+import { readFileSync, writeFileSync } from 'fs';
+import { resolve } from 'path';
+import * as clear from 'clear-console';
+
+export interface PackageJSON {
+  name: string;
+  version: string;
+  description: string;
+  scripts: {
+    [key: string]: string;
+  };
+}
+
+export interface JSON {
+  [key: string]: unknown;
+}
+
+/**
+ * 读取指定路径下的json文件
+ * @param filename json 文件的路径
+ */
+export function readJsonFile<T>(filename: string): T {
+  return JSON.parse(readFileSync(filename, { encoding: 'utf-8', flag: 'r' }));
+}
+
+/**
+ * 覆写指定路径下的json文件
+ * @param filename json文件的路径
+ * @param content json 内容
+ */
+export function writeJsonFile<T>(filename: string, content: T): void {
+  writeFileSync(filename, JSON.stringify(content, null, 2));
+}
+
+/**
+ * 获取项目的绝对路径
+ * @param projectName 项目名
+ */
+export function getProjectPath(projectName: string): string {
+  return resolve(process.cwd(), projectName);
+}
+
+/**
+ * 打印信息
+ * @param msg 信息
+ */
+export function printMsg(msg: string): void {
+  console.log('--打印信息为:---', msg);
+}
+
+/**
+ * 清空命令行
+ */
+export function clearConsole(): void {
+  clear();
+}
+```
+
+src/utils/installFeature.ts 文件负责安装 Eslint，prettier，CZ 规范代码的配置文件。代码如下：
+
+```
+/**
+ * 实现各个功能的安装方法
+ */
+import * as shell from 'shelljs';
+import { writeFileSync } from 'fs';
+import { PackageJSON, printMsg, readJsonFile, writeJsonFile } from './common';
+import { red } from 'chalk';
+
+/**
+ * 安装Eslint
+ */
+export function installESLint(): void {
+  shell.exec(
+    'npm i eslint @typescript-eslint/parser@4.9.0 @typescript-eslint/eslint-plugin@4.9.0 -D',
+  );
+  // 添加 .eslintrc.js
+  const eslintrc = `module.exports = {
+    "env": {
+      "browser": true,
+      "es2021": true,
+      "node": true
+    },
+    "extends": [
+      "eslint:recommended",
+      "plugin:@typescript-eslint/recommended",
+      "plugin:react/recommended"
+    ],
+    "parser": "@typescript-eslint/parser",
+    "parserOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "module"
+    },
+    "plugins": [
+      "@typescript-eslint",
+      "react"
+    ],
+    "rules": {},
+  }`;
+  try {
+    writeFileSync('./.eslintrc.js', eslintrc, { encoding: 'utf-8' });
+  } catch (err) {
+    printMsg(`${red('Failed to write .eslintrc.js file content')}`);
+    printMsg(`${red('Please add the following content in .eslintrc.js')}`);
+    printMsg(`${red(eslintrc)}`);
+  }
+
+  // 改写 package.json
+  const packageJson = readJsonFile<PackageJSON>('./package.json');
+  packageJson.scripts['eslint:comment'] =
+    '使用 ESLint 检查并自动修复 src目录下所有扩展名为 .ts 的文件';
+  packageJson.scripts['eslint'] = 'eslint --fix src --ext .ts --max-warnings=0';
+  writeJsonFile<PackageJSON>('./package.json', packageJson);
+}
+
+/**
+ * 安装 Prettier
+ */
+export function installPrettier(): void {
+  shell.exec('npm i prettier@2.2.1 -D');
+  // 添加 .prettierrc.js
+  const prettierrc = `module.exports = {
+    // 一行最多 80 字符
+    printWidth: 80,
+    // 使用 2 个空格缩进
+    tabWidth: 2,
+    // 不使用 tab 缩进，而使用空格
+    useTabs: false,
+    // 行尾需要有分号
+    semi: true,
+    // 使用单引号代替双引号
+    singleQuote: true,
+    // 对象的 key 仅在必要时用引号
+    quoteProps: 'as-needed',
+    // jsx 不使用单引号，而使用双引号
+    jsxSingleQuote: false,
+    // 末尾使用逗号
+    trailingComma: 'all',
+    // 大括号内的首尾需要空格 { foo: bar }
+    bracketSpacing: true,
+    // jsx 标签的反尖括号需要换行
+    jsxBracketSameLine: false,
+    // 箭头函数，只有一个参数的时候，也需要括号
+    arrowParens: 'always',
+    // 每个文件格式化的范围是文件的全部内容
+    rangeStart: 0,
+    rangeEnd: Infinity,
+    // 不需要写文件开头的 @prettier
+    requirePragma: false,
+    // 不需要自动在文件开头插入 @prettier
+    insertPragma: false,
+    // 使用默认的折行标准
+    proseWrap: 'preserve',
+    // 根据显示样式决定 html 要不要折行
+    htmlWhitespaceSensitivity: 'css',
+    // 换行符使用 lf
+    endOfLine: 'lf'
+  }`;
+  try {
+    writeFileSync('./.prettierrc.js', prettierrc, { encoding: 'utf-8' });
+  } catch (err) {
+    printMsg(`${red('Failed to write .prettierrc.js file content')}`);
+    printMsg(`${red('Please add the following content in .prettierrc.js')}`);
+    printMsg(`${red(prettierrc)}`);
+  }
+
+  // 改写 package.json
+  const packageJson = readJsonFile<PackageJSON>('./package.json');
+  packageJson.scripts['prettier:comment'] =
+    '自动格式化 src目录下的所有 .ts文件';
+  packageJson.scripts['prettier'] = 'prettier --write "src/**/*.ts"';
+  writeJsonFile<PackageJSON>('./package.json', packageJson);
+}
+
+/**
+ * 安装 CZ，规范 git 提交信息
+ */
+export function installCZ(): void {
+  shell.exec(
+    'npx commitizen init cz-conventional-changelog --save --save-exact',
+  );
+  shell.exec('npm i @commitlint/cli@11.0.0 @commitlint/config-conventional@11.0.0 -D');
+  // 添加 commitlint.config.js
+  const commitlint = `module.exports = {
+    extends: ['@commitlint/config-conventional']
+  }`;
+  try {
+    writeFileSync('./commitlint.config.js', commitlint, { encoding: 'utf-8' });
+  } catch (err) {
+    printMsg(`${red('Failed to write commitlint.config.js file content')}`);
+    printMsg(
+      `${red('Please add the following content in commitlint.config.js')}`,
+    );
+    printMsg(`${red(commitlint)}`);
+  }
+  // 改写 package.json
+  const packageJson = readJsonFile<PackageJSON>('./package.json');
+  packageJson.scripts['commit:comment'] = '引导设置规范化的提交信息';
+  packageJson.scripts['commit'] = 'cz';
+  writeJsonFile<PackageJSON>('./package.json', packageJson);
+}
+
+/**
+ * 安装 husky 和 lint-staged, 以实现 git commit 时自动化校验
+ * @param hooks 需要自动执行的钩子
+ * @param lintStaged 需要钩子运行的命令
+ */
+export function installHusky(
+  hooks: { [key: string]: string },
+  lintStaged: Array<string>,
+): void {
+  // 1）初始化 git 仓库
+  shell.exec('git init');
+  // 2）再安装 husky 和 lint-staged
+  shell.exec('npm i husky@4.3.0 lint-staged@10.5.2 -D');
+  // 3) 设置 package.json
+  const packageJson = readJsonFile<PackageJSON>('./package.json');
+  packageJson['husky'] = {
+    hooks: {
+      'pre-commit': 'lint-staged',
+      ...hooks,
+    },
+  };
+  packageJson['lint-staged'] = {
+    '*.ts': lintStaged.map((item) => `npm run ${item}`),
+  };
+  writeJsonFile<PackageJSON>('./package.json', packageJson);
+}
+
+/**
+ * 安装构建工具
+ */
+export function installBuild(feature: Array<string>): void {
+  // 设置 package.json
+  const packageJson = readJsonFile<PackageJSON>('./package.json');
+  packageJson.scripts['build:comment'] = '构建';
+  let order = '';
+  if (feature.includes('ESLint')) {
+    order += 'npm run eslint';
+  }
+  if (feature.includes('Prettier')) {
+    order += ' && npm run prettier';
+  }
+  order += ' && rm -rf lib && tsc --build';
+  packageJson.scripts['build'] = order;
+  writeJsonFile<PackageJSON>('./package.json', packageJson);
+}
+```
+
+#### 构建
+
+执行 npm run build 进行构建，构建时会进行代码质量和风格的检查，如果有问题的话，会在控制台打印出来，然后需要手动修复下。然后重新构建。构建完成以后，我们
+可以测试下我们的 脚手架命令，执行 ts-staging-cli -v 或 ts-staging-cli --version 查看脚手架的版本。我们也可以执行 ts-staging-cli create testApp 可以创建一个名为 testApp的typescript的项目。
+
+#### 发布到npm
+
+1）修改 package.json 中的内容，如下：
+
+```
+{
+  "name": "ts-staging-cli",
+  "version": "1.0.0",
+  "description": "typescript脚手架",
+  "keywords": ["typescript", "cli", "typescript 脚手架", "ts脚手架", "ts-staging-cli", "脚手架"],
+  "author": "tugenhua",
+  "main": "./lib/index.js",
+  "files": ["package.json", "README.md", "lib"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kongzhi0707/ts-staging.git"
+  },
+}
+```
+
+```
+name: 包名。
+main: 表示包的入口文件。
+keywords: 关键字，方便别人搜索到我们的包。
+files: 告诉npm, publish 时发布哪些包到 npm 仓库。
+repository: 项目仓库
+version: 包的版本号
+author： 作者/开发者的名字
+```
+
+#### 发布
+
+在项目的根目录下增加一个发布脚本 publish.sh, 内容如下：
+
+```
+#!/bin/bash
+
+echo '开始构建脚手架...'
+
+npm run build
+
+echo '脚手架构建完成，现在发布...'
+
+npm publish --access public
+```
+
+在项目的根目录下登录npm，如下命令
+
+```
+npm login
+```
+
+登录成功后，执行如下命令完成发布：
+
+```
+sh publish.sh
+```
