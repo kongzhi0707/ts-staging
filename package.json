@@ -1,6 +1,6 @@
 {
   "name": "ts-staging-cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "typescript脚手架",
   "keywords": ["typescript", "cli", "typescript 脚手架", "ts脚手架", "ts-staging-cli", "脚手架"],
   "author": "tugenhua",

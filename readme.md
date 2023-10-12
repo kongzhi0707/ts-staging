@@ -972,3 +972,19 @@ npm login
 ```
 sh publish.sh
 ```
+
+#### 测试 ts-staging-cli 包的使用
+
+全局安装命令如下:
+
+```
+npm install -g ts-staging-cli
+```
+
+然后创建项目名称如下：
+
+```
+ts-staging-cli create testApp
+```
+
+会生成项目目录。
